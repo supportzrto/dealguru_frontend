@@ -1,0 +1,1 @@
+export const adminHead = (t: string) => ({ meta: [{ title: `${t} — DealGuru Admin` }, { name: "description", content: "DealGuru store admin." }, { property: "og:title", content: `${t} — DealGuru Admin` }, { property: "og:description", content: "DealGuru store admin." }, { name: "robots", content: "noindex" }] });
