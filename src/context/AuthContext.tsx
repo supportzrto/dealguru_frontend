@@ -152,7 +152,7 @@ function addressPayload(a: AddressValues) {
 
 async function fetchAddresses(): Promise<Address[]> {
   const data = await apiRequest<ApiAddress[]>(
-    "/api/auth/addresses"
+    "/api/auth/addresses/"
   );
 
   return data.map(mapAddress);
@@ -385,8 +385,8 @@ export function AuthProvider({
   const saveAddress = useCallback(
     async (a: AddressValues, id?: string): Promise<Address> => {
       const endpoint = id
-        ? `/api/auth/addresses${encodeURIComponent(id)}`
-        : "/api/auth/addresses";
+        ? `/api/auth/addresses/${encodeURIComponent(id)}`
+        : "/api/auth/addresses/";
 
       const saved = await apiRequest<ApiAddress>(endpoint, {
         method: id ? "PUT" : "POST",
@@ -425,7 +425,7 @@ export function AuthProvider({
 
   const deleteAddress = useCallback(async (id: string) => {
     await apiRequest(
-      `/api/auth/addresses${encodeURIComponent(id)}`,
+      `/api/auth/addresses/${encodeURIComponent(id)}`,
       { method: "DELETE" }
     );
 
@@ -448,7 +448,7 @@ export function AuthProvider({
     }
 
     const updated = await apiRequest<ApiAddress>(
-      `/api/auth/addresses${encodeURIComponent(id)}`,
+      `/api/auth/addresses/${encodeURIComponent(id)}`,
       {
         method: "PUT",
         headers: {
