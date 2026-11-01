@@ -1,0 +1,9 @@
+
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://api-dealguru.up.railway.app/api/:path*"
+    }
+  ]
+}
