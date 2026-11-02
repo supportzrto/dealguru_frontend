@@ -1,5 +1,5 @@
 // Demo only. Replace with Supabase auth, DB and storage later.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Download, Search, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import {
   useOrders,
   type Order,
   type OrderStatus,
+  type RefundReviewItem,
 } from "@/context/OrdersContext";
 import { StatusPill } from "@/components/shop/OrderBits";
 import { fmtDate, inr } from "@/lib/shop/format";
@@ -95,8 +96,196 @@ export function StatusSelect({ order, compact = false }: { order: Order; compact
   );
 }
 
+function RefundReviewSection() {
+  const {
+    refundReviews,
+    refreshRefundReviews,
+    recordRefund,
+    syncRefund,
+  } = useOrders();
+
+  const [refundIds, setRefundIds] = useState<Record<string, string>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const loadReviews = async () => {
+    setLoading(true);
+    try {
+      await refreshRefundReviews();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to load refund reviews",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadReviews();
+  }, []);
+
+  const handleRecord = async (item: RefundReviewItem) => {
+    const refundReference = refundIds[item.payment_id]?.trim();
+
+    if (!refundReference) {
+      toast.error("Enter the Razorpay Refund ID");
+      return;
+    }
+
+    setSavingId(item.payment_id);
+
+    try {
+      await recordRefund(item.payment_id, refundReference);
+      setRefundIds((previous) => ({
+        ...previous,
+        [item.payment_id]: "",
+      }));
+      toast.success("Refund ID verified and recorded");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to record refund",
+      );
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const handleSync = async (item: RefundReviewItem) => {
+    setSavingId(item.payment_id);
+
+    try {
+      const result = await syncRefund(item.payment_id);
+      toast.success(`Refund status: ${result.razorpay_status}`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to sync refund",
+      );
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  return (
+    <section className="mb-6 rounded-xl border border-border bg-card p-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Refund Review</h2>
+          <p className="text-xs text-muted-foreground">
+            Review captured payments requiring manual refunds.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={loadReviews}
+          disabled={loading}
+          className={btnOutline}
+        >
+          {loading ? "Refreshing..." : "Refresh"}
+        </button>
+      </div>
+
+      {loading && refundReviews.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Loading refund reviews...</p>
+      ) : refundReviews.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No refunds currently require review.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {refundReviews.map((item) => (
+            <div
+              key={item.payment_id}
+              className="rounded-lg border border-border p-4"
+            >
+              <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Customer</p>
+                  <p className="font-medium">{item.customer_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.customer_email}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-muted-foreground">Order ID</p>
+                  <p className="break-all font-medium">{item.order_id}</p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-muted-foreground">Payment amount</p>
+                  <p className="font-semibold">
+                    {inr(Number(item.amount))}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-muted-foreground">Razorpay Payment ID</p>
+                  <p className="break-all">{item.provider_payment_id}</p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-muted-foreground">Order status</p>
+                  <p>{item.order_status}</p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-muted-foreground">Refund status</p>
+                  <p className="font-semibold">{item.refund_status}</p>
+                </div>
+              </div>
+
+              {item.refund_reference ? (
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <p className="break-all text-xs text-muted-foreground">
+                    Refund ID: {item.refund_reference}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSync(item)}
+                    disabled={savingId === item.payment_id}
+                    className={btnOutline}
+                  >
+                    {savingId === item.payment_id ? "Checking..." : "Sync status"}
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <input
+                    value={refundIds[item.payment_id] ?? ""}
+                    onChange={(event) =>
+                      setRefundIds((previous) => ({
+                        ...previous,
+                        [item.payment_id]: event.target.value,
+                      }))
+                    }
+                    placeholder="Enter Razorpay Refund ID (rfnd_...)"
+                    className={`${inputCls} min-w-[240px] flex-1`}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => handleRecord(item)}
+                    disabled={savingId === item.payment_id}
+                    className={btnOutline}
+                  >
+                    {savingId === item.payment_id ? "Verifying..." : "Record refund ID"}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function OrdersPage({ initialStatus }: { initialStatus?: string | undefined }) {
-  const { orders, ready } = useOrders();
+  const { orders, ready, refundReviews, refreshRefundReviews, recordRefund, syncRefund } =
+    useOrders();
   const [q, setQ] = useState("");
   const [status, setStatusF] = useState(initialStatus ?? "all");
   const [method, setMethod] = useState("all");
@@ -166,6 +355,8 @@ export function OrdersPage({ initialStatus }: { initialStatus?: string | undefin
   const sel = "h-9 bg-card text-[13px]";
 
   return (
+    <>
+      <RefundReviewSection />
     <Panel>
       <div className="mb-4 flex flex-wrap gap-2">
         <label className="relative min-w-[220px] flex-1">
@@ -303,6 +494,8 @@ export function OrdersPage({ initialStatus }: { initialStatus?: string | undefin
         </>
       )}
     </Panel>
+
+  </>
   );
 }
 

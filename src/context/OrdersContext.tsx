@@ -144,6 +144,28 @@ export type RazorpayVerification = {
   razorpay_signature: string;
 };
 
+export type RefundReviewItem = {
+  payment_id: string;
+  order_id: string;
+  customer_name: string;
+  customer_email: string;
+  provider_payment_id: string;
+  amount: number;
+  currency: string;
+  payment_status: string;
+  order_status: string;
+  refund_status: string;
+  refund_reference: string | null;
+  created_at: string;
+};
+
+export type RefundReviewResponse = {
+  payment_id: string;
+  refund_reference: string;
+  refund_status: "refund_initiated" | "refunded";
+  razorpay_status: "pending" | "processed" | "failed";
+};
+
 export type CreateOrderInput = {
   addressId: string;
   items: {
@@ -299,6 +321,10 @@ type Ctx = {
   cancelOrder: (id: string) => Promise<void>;
   setStatus: (id: string, status: OrderStatus) => Promise<void>;
   updateOrder: (id: string, patch: Partial<Pick<Order, "trackingNumber" | "internalNote">>) => void;
+  refundReviews: RefundReviewItem[];
+  refreshRefundReviews: () => Promise<void>;
+  recordRefund: (paymentId: string, refundReference: string) => Promise<RefundReviewResponse>;
+  syncRefund: (paymentId: string) => Promise<RefundReviewResponse>;
 };
 
 const OrdersCtx = createContext<Ctx | null>(null);
@@ -308,6 +334,48 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [ready, setReady] = useState(false);
+  const [refundReviews, setRefundReviews] = useState<RefundReviewItem[]>([]);
+  const refreshRefundReviews = useCallback(async () => {
+    const response = await apiRequest<RefundReviewItem[]>("/api/orders/admin/refunds/review");
+
+    setRefundReviews(response);
+  }, []);
+
+  const recordRefund = useCallback(
+    async (paymentId: string, refundReference: string) => {
+      const response = await apiRequest<RefundReviewResponse>(
+        `/api/orders/admin/refunds/${paymentId}/record`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            refund_reference: refundReference,
+          }),
+        },
+      );
+
+      await refreshRefundReviews();
+      return response;
+    },
+    [refreshRefundReviews],
+  );
+
+  const syncRefund = useCallback(
+    async (paymentId: string) => {
+      const response = await apiRequest<RefundReviewResponse>(
+        `/api/orders/admin/refunds/${paymentId}/sync`,
+        {
+          method: "PATCH",
+        },
+      );
+
+      await refreshRefundReviews();
+      return response;
+    },
+    [refreshRefundReviews],
+  );
   const [now] = useState(() => Date.now());
   const createRazorpayPayment = useCallback(async (orderId: string): Promise<RazorpayOrder> => {
     return apiRequest<RazorpayOrder>(`/api/orders/${orderId}/payment/create`, {
@@ -467,19 +535,29 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       updateOrder,
       createRazorpayPayment,
       verifyRazorpayPayment,
+      refundReviews,
+      refreshRefundReviews,
+      recordRefund,
+      syncRefund,
     };
   }, [
-    orders,
-    user?.id,
-    isAdmin,
-    ready,
-    now,
-    refreshOrders,
-    createOrder,
-    cancelOrder,
-    setStatus,
-    updateOrder,
-  ]);
+  orders,
+  user?.id,
+  isAdmin,
+  ready,
+  now,
+  refreshOrders,
+  createOrder,
+  cancelOrder,
+  setStatus,
+  updateOrder,
+  refundReviews,
+  refreshRefundReviews,
+  recordRefund,
+  syncRefund,
+  createRazorpayPayment,
+  verifyRazorpayPayment,
+]);
 
   return <OrdersCtx.Provider value={value}>{children}</OrdersCtx.Provider>;
 }
