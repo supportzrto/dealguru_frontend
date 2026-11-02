@@ -1,4 +1,3 @@
-
 import {
   createContext,
   useCallback,
@@ -160,7 +159,15 @@ async function fetchAddresses(): Promise<Address[]> {
 
 async function fetchCurrentUser(): Promise<User> {
   const apiUser = await apiRequest<ApiUser>("/api/auth/me");
-  const addresses = await fetchAddresses();
+
+  // Addresses are secondary data: if they fail to load, the user is still
+  // logged in (otherwise login shows a misleading "invalid token" error).
+  let addresses: Address[] = [];
+  try {
+    addresses = await fetchAddresses();
+  } catch (error) {
+    console.warn("Could not load addresses", error);
+  }
 
   return mapUser(apiUser, addresses);
 }
