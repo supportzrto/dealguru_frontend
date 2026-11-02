@@ -21,6 +21,55 @@ import { newOrderId } from "@/lib/shop/payment";
 import { imageFor } from "@/components/shop/data";
 import { toast } from "sonner";
 
+type RazorpaySuccessResponse = {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+};
+
+type RazorpayOptions = {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  order_id: string;
+  handler: (response: RazorpaySuccessResponse) => void | Promise<void>;
+  modal: {
+    ondismiss: () => void;
+  };
+  theme: {
+    color: string;
+  };
+};
+
+type RazorpayInstance = {
+  open: () => void;
+  on: (event: string, callback: (response: { error?: { description?: string } }) => void) => void;
+};
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayOptions) => RazorpayInstance;
+  }
+}
+
+async function loadRazorpay(): Promise<void> {
+  if (window.Razorpay) return;
+
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Unable to load Razorpay Checkout."));
+    document.body.appendChild(script);
+  });
+
+  if (!window.Razorpay) {
+    throw new Error("Razorpay Checkout could not be initialized.");
+  }
+}
+
 export const Route = createFileRoute("/checkout")({
   head: () => noindexHead("Checkout", "Secure checkout for your DealGuru order."),
   component: () => (
@@ -117,7 +166,7 @@ function Checkout() {
   const { user, saveAddress, isAdmin } = useAuth();
   const { rules } = useSettings();
   const { items, subtotal, coupon, clear } = useCart();
-  const { createOrder } = useOrders();
+  const { createOrder, createRazorpayPayment, verifyRazorpayPayment } = useOrders();
   const navigate = useNavigate();
 
   const addresses = user?.addresses ?? [];
@@ -140,7 +189,7 @@ function Checkout() {
 
   const base = { subtotal, coupon, delivery, giftWrap, giftCardCredit: giftCredit, rules };
   const preCod = computeTotals(base);
-  const t = computeTotals({ ...base, cod: payment?.method === "cod" });
+  const t = computeTotals({ ...base, cod: false });
   const address = addresses.find((a) => a.id === addressId);
   const codEligible = codAllowed(preCod.total);
 
@@ -188,6 +237,7 @@ function Checkout() {
         throw new Error("Please select a supported online payment method.");
       }
 
+      // 1. Create the DealGuru order
       const order = await createOrder({
         addressId,
         items: items.map((i) => ({
@@ -203,16 +253,66 @@ function Checkout() {
         couponCode: coupon?.code,
       });
 
-      setPlaced(true);
-      clear();
+      // 2. Load Razorpay Checkout
+      await loadRazorpay();
 
-      navigate({
-        to: "/order-success/$orderId",
-        params: { orderId: order.id },
-        replace: true,
+      // 3. Create Razorpay order through backend
+      const razorpayOrder = await createRazorpayPayment(order.id);
+
+      // 4. Open Razorpay Checkout
+      await new Promise<void>((resolve, reject) => {
+        const Razorpay = window.Razorpay;
+
+        if (!Razorpay) {
+          reject(new Error("Razorpay Checkout is unavailable."));
+          return;
+        }
+
+        const checkout = new Razorpay({
+          key: razorpayOrder.razorpay_key_id,
+          amount: razorpayOrder.amount,
+          currency: razorpayOrder.currency,
+          name: "DealGuru",
+          description: "Order payment",
+          order_id: razorpayOrder.razorpay_order_id,
+
+          handler: async (response) => {
+            try {
+              // 5. Verify payment on backend
+              await verifyRazorpayPayment(order.id, response);
+
+              setPlaced(true);
+              clear();
+
+              navigate({
+                to: "/order-success/$orderId",
+                params: { orderId: order.id },
+                replace: true,
+              });
+
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          },
+
+          modal: {
+            ondismiss: () => resolve(),
+          },
+
+          theme: {
+            color: "#FF6A00",
+          },
+        });
+
+        checkout.on("payment.failed", (response) => {
+          reject(new Error(response.error?.description || "Payment failed. Please try again."));
+        });
+
+        checkout.open();
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Order creation failed");
+      toast.error(error instanceof Error ? error.message : "Payment could not be completed.");
     } finally {
       setPaying(false);
     }
@@ -392,8 +492,6 @@ function Checkout() {
           >
             <PaymentStep
               total={preCod.total}
-              giftCredit={giftCredit}
-              setGiftCredit={setGiftCredit}
               initial={payment}
               onContinue={(c) => {
                 setPayment(c);
@@ -471,7 +569,6 @@ function Checkout() {
             )}
         </aside>
       </div>
-      
     </div>
   );
 }

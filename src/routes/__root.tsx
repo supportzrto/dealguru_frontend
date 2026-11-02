@@ -88,7 +88,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "DealGuru | Smart finds. Better living." },
-      { name: "description", content: "Smart everyday finds at honest prices, with free shipping on every order." },
+      {
+        name: "description",
+        content: "Smart everyday finds at honest prices, with free shipping on every order.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -117,6 +120,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <script src="https://checkout.razorpay.com/v1/checkout.js" async />
       </head>
       <body>
         {children}
@@ -134,24 +138,24 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-      <SettingsProvider>
-      <ProductsProvider>
-      <OrdersProvider>
-      <StoreProvider>
-        {!isAdmin && <AnnouncementBar />}
-        {!isAdmin && <Navbar />}
-        <main>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-        </main>
-        {!isAdmin && <Footer />}
-        {!isAdmin && <CartDrawer />}
-        {!isAdmin && <SearchOverlay />}
-        <Toaster position="bottom-right" />
-      </StoreProvider>
-      </OrdersProvider>
-      </ProductsProvider>
-      </SettingsProvider>
+        <SettingsProvider>
+          <ProductsProvider>
+            <OrdersProvider>
+              <StoreProvider>
+                {!isAdmin && <AnnouncementBar />}
+                {!isAdmin && <Navbar />}
+                <main>
+                  {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+                  <Outlet />
+                </main>
+                {!isAdmin && <Footer />}
+                {!isAdmin && <CartDrawer />}
+                {!isAdmin && <SearchOverlay />}
+                <Toaster position="bottom-right" />
+              </StoreProvider>
+            </OrdersProvider>
+          </ProductsProvider>
+        </SettingsProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

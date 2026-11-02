@@ -130,6 +130,20 @@ type BackendOrder = {
   items: BackendOrderItem[];
 };
 
+export type RazorpayOrder = {
+  dealguru_order_id: string;
+  razorpay_order_id: string;
+  razorpay_key_id: string;
+  amount: number;
+  currency: string;
+};
+
+export type RazorpayVerification = {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+};
+
 export type CreateOrderInput = {
   addressId: string;
   items: {
@@ -278,6 +292,8 @@ type Ctx = {
   orders: Order[];
   myOrders: Order[];
   getOrder: (id: string) => Order | undefined;
+  createRazorpayPayment: (orderId: string) => Promise<RazorpayOrder>;
+  verifyRazorpayPayment: (orderId: string, payload: RazorpayVerification) => Promise<Order>;
   refreshOrders: () => Promise<void>;
   createOrder: (input: CreateOrderInput) => Promise<Order>;
   cancelOrder: (id: string) => Promise<void>;
@@ -293,7 +309,32 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [ready, setReady] = useState(false);
   const [now] = useState(() => Date.now());
+  const createRazorpayPayment = useCallback(async (orderId: string): Promise<RazorpayOrder> => {
+    return apiRequest<RazorpayOrder>(`/api/orders/${orderId}/payment/create`, {
+      method: "POST",
+    });
+  }, []);
 
+  const verifyRazorpayPayment = useCallback(
+    async (orderId: string, payload: RazorpayVerification): Promise<Order> => {
+      const response = await apiRequest<BackendOrder>(`/api/orders/${orderId}/payment/verify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const updatedOrder = mapBackendOrder(response);
+
+      setOrders((previous) =>
+        previous.map((order) => (order.id === updatedOrder.id ? updatedOrder : order)),
+      );
+
+      return updatedOrder;
+    },
+    [],
+  );
   const refreshOrders = useCallback(async () => {
     if (!user) {
       setOrders([]);
@@ -424,6 +465,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       cancelOrder,
       setStatus,
       updateOrder,
+      createRazorpayPayment,
+      verifyRazorpayPayment,
     };
   }, [
     orders,
