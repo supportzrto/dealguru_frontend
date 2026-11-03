@@ -1,6 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { InfoPage, infoHead } from "@/components/shop/Info";
 
+export const Route = createFileRoute("/about")({
+  head: () =>
+    infoHead(
+      "About Us",
+      "DealGuru finds smart, genuine everyday products and brings them to you at honest prices."
+    ),
+  component: Page,
+});
+
 function Page() {
   return (
     <InfoPage
