@@ -1,24 +1,48 @@
-import logo from "@/assets/dealguru-logo.png.asset.json";
+
 import mark from "@/assets/dealguru-mark.png.asset.json";
 import { Link } from "@tanstack/react-router";
 
-export const LOGO_URL = logo.url;
+export const LOGO_URL = "/dealguru-logo.png";
 
-/** The cart icon from the DealGuru logo on its own (admin sidebar, small spots). */
+/** The cart icon from the DealGuru logo on its own. */
 export function LogoMark({ className = "h-10 w-10" }: { className?: string }) {
-  return <img src={mark.url} alt="" width={650} height={472} className={`${className} shrink-0 object-contain`} />;
+  return (
+    <img
+      src={mark.url}
+      alt=""
+      width={650}
+      height={472}
+      className={`${className} shrink-0 object-contain`}
+    />
+  );
 }
 
-/** Full DealGuru logo (cart + name). */
-export function Logo({ onClick, className = "h-8 sm:h-9" }: { onClick?: () => void; className?: string }) {
+/** Full DealGuru logo. */
+export function Logo({
+  onClick,
+  className = "h-8 sm:h-9",
+}: {
+  onClick?: () => void;
+  className?: string;
+}) {
   return (
-    <Link to="/" onClick={onClick} className="flex min-w-0 items-center" aria-label="DealGuru home">
-      <img src={logo.url} alt="DealGuru" width={1002} height={190} className={`${className} w-auto max-w-full object-contain`} />
+    <Link
+      to="/"
+      onClick={onClick}
+      className="flex min-w-0 items-center"
+      aria-label="DealGuru home"
+    >
+      <img
+        src={LOGO_URL}
+        alt="DealGuru"
+        width={1002}
+        height={190}
+        className={`${className} w-auto max-w-full object-contain`}
+      />
     </Link>
   );
 }
 
-/** The three motion bars from the logo, used as a light decoration. */
 export function SpeedLines({ className }: { className: string }) {
   return (
     <svg viewBox="0 0 120 80" className={className} fill="currentColor" aria-hidden>
