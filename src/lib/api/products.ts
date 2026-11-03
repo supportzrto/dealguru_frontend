@@ -80,3 +80,106 @@ export async function fetchProduct(id: string): Promise<Product> {
 
   return mapProduct(data);
 }
+
+export async function uploadProductImage(
+  productId: string,
+  file: File
+): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await apiRequest<{ url: string }>(
+    `/api/products/admin/${encodeURIComponent(productId)}/images`,
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+
+  return response.url;
+}
+
+export async function createProduct(product: Product): Promise<Product> {
+  const data = await apiRequest<ApiProduct>("/api/products/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      id: product.id,
+      sku: product.sku,
+      name: product.name,
+      category: product.category,
+      description: product.description ?? null,
+      image: product.image,
+      images: product.images,
+      color_images: product.colorImages,
+      price: product.price,
+      original_price: product.originalPrice,
+      rating: product.rating,
+      review_count: product.reviewCount,
+      colors: product.colors,
+      badge: product.badge ?? null,
+      is_new: product.isNew,
+      fabric: product.fabric,
+      occasion: product.occasion,
+      set_includes: product.setIncludes ?? null,
+      features: product.features,
+      stock: product.stock,
+      sizes: product.sizes,
+      status: product.status,
+      show_in_popular: product.showInPopular,
+      show_in_best_sellers: product.showInBestSellers,
+      featured_at: product.featuredAt ?? null,
+    }),
+  });
+
+  return mapProduct(data);
+}
+
+export async function updateProduct(product: Product): Promise<Product> {
+  const data = await apiRequest<ApiProduct>(
+    `/api/products/${encodeURIComponent(product.id)}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        sku: product.sku,
+        name: product.name,
+        category: product.category,
+        description: product.description ?? null,
+        image: product.image,
+        images: product.images,
+        color_images: product.colorImages,
+        price: product.price,
+        original_price: product.originalPrice,
+        rating: product.rating,
+        review_count: product.reviewCount,
+        colors: product.colors,
+        badge: product.badge ?? null,
+        is_new: product.isNew,
+        fabric: product.fabric,
+        occasion: product.occasion,
+        set_includes: product.setIncludes ?? null,
+        features: product.features,
+        stock: product.stock,
+        sizes: product.sizes,
+        status: product.status,
+        show_in_popular: product.showInPopular,
+        show_in_best_sellers: product.showInBestSellers,
+        featured_at: product.featuredAt ?? null,
+      }),
+    }
+  );
+
+  return mapProduct(data);
+}
+
+export async function deleteProduct(id: string): Promise<void> {
+  await apiRequest(
+    `/api/products/${encodeURIComponent(id)}`,
+    { method: "DELETE" }
+  );
+}

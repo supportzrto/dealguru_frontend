@@ -9,18 +9,26 @@ import {
   STORAGE_KEYS,
   writeStore,
 } from "@/lib/storage";
-import { fetchProducts, fetchAllProductsAdmin } from "@/lib/api/products";
+import {
+  fetchProducts,
+  fetchAllProductsAdmin,
+  deleteProduct,
+  updateProduct,
+  createProduct,
+} from "@/lib/api/products";
+import { useAuth } from "@/context/AuthContext";
 
 type Ctx = {
   ready: boolean;
+  refreshProducts: () => Promise<void>;
   /** Every product, including drafts (admin). */
   all: Product[];
   /** Products visible on the storefront (drafts hidden). */
   products: Product[];
   getProduct: (id: string) => Product | undefined;
   /** Returns false when storage is full. */
-  saveProduct: (p: Product) => boolean;
-  saveMany: (list: Product[]) => boolean;
+  saveProduct: (p: Product) => Promise<void>;
+  saveMany: (ps: Product[]) => Promise<void>;
   removeProducts: (ids: string[]) => void;
   /** Adds (positive) or removes (negative) stock per product id. */
   adjustStock: (changes: { productId: string; qty: number }[]) => void;
@@ -50,25 +58,28 @@ function normalize(p: Partial<Product> & { id: string }): Product {
 export function ProductsProvider({ children }: { children: ReactNode }) {
   const [all, setAll] = useState<Product[]>([]);
   const [ready, setReady] = useState(false);
+  const { ready: authReady, isAdmin } = useAuth();
 
   useEffect(() => {
+    if (!authReady) return;
+
     let cancelled = false;
 
     const load = async () => {
-      try {
-        let data: Product[];
+      setReady(false);
 
-        try {
-          data = await fetchAllProductsAdmin();
-        } catch {
-          data = await fetchProducts();
-        }
+      try {
+        const data = isAdmin ? await fetchAllProductsAdmin() : await fetchProducts();
 
         if (!cancelled) {
           setAll(data);
         }
       } catch (error) {
         console.error("Failed to load products:", error);
+
+        if (!cancelled) {
+          setAll([]);
+        }
       } finally {
         if (!cancelled) {
           setReady(true);
@@ -81,7 +92,7 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authReady, isAdmin]);
 
   const value = useMemo<Ctx>(() => {
     const commit = (next: Product[]) => {
@@ -96,27 +107,61 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
       ready,
       all,
       products: visible,
+      refreshProducts: async () => {
+        const data = isAdmin ? await fetchAllProductsAdmin() : await fetchProducts();
+
+        setAll(data);
+      },
       getProduct: (id) => visible.find((p) => p.id === id),
-      saveProduct: (p) => {
-        const list = current();
-        return commit(
-          list.some((x) => x.id === p.id) ? list.map((x) => (x.id === p.id ? p : x)) : [p, ...list],
-        );
+      saveProduct: async (p) => {
+        const exists = current().some((x) => x.id === p.id);
+
+        if (exists) {
+          await updateProduct(p);
+        } else {
+          await createProduct(p);
+        }
+
+        const data = isAdmin ? await fetchAllProductsAdmin() : await fetchProducts();
+
+        setAll(data);
       },
-      saveMany: (ps) => {
-        const map = new Map(ps.map((p) => [p.id, p]));
-        return commit(current().map((x) => map.get(x.id) ?? x));
+      saveMany: async (ps) => {
+        for (const product of ps) {
+          await updateProduct(product);
+        }
+
+        const data = isAdmin ? await fetchAllProductsAdmin() : await fetchProducts();
+
+        setAll(data);
       },
-      removeProducts: (ids) => {
-        commit(current().filter((x) => !ids.includes(x.id)));
+      removeProducts: async (ids) => {
+        for (const id of ids) {
+          await deleteProduct(id);
+        }
+
+        const data = isAdmin ? await fetchAllProductsAdmin() : await fetchProducts();
+
+        setAll(data);
       },
-      adjustStock: (changes) => {
-        commit(
-          current().map((x) => {
-            const d = changes.filter((c) => c.productId === x.id).reduce((n, c) => n + c.qty, 0);
-            return d ? { ...x, stock: Math.max(0, x.stock + d) } : x;
-          }),
-        );
+      adjustStock: async (changes) => {
+        const updatedProducts = current().map((x) => {
+          const d = changes.filter((c) => c.productId === x.id).reduce((n, c) => n + c.qty, 0);
+
+          return d ? { ...x, stock: Math.max(0, x.stock + d) } : x;
+        });
+
+        for (const product of updatedProducts) {
+          const original = current().find((x) => x.id === product.id);
+
+          if (original && original.stock !== product.stock) {
+            await updateProduct(product);
+          }
+        }
+
+        const data = isAdmin ? await fetchAllProductsAdmin() : await fetchProducts();
+
+        setAll(data);
       },
     };
   }, [all, ready]);
