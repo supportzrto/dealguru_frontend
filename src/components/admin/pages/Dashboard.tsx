@@ -28,7 +28,7 @@ export function Dashboard() {
       const list = live.filter((o) => dayKey(new Date(o.createdAt)) === dayKey(d));
       return { day: d.toLocaleDateString("en-IN", { weekday: "short" }), revenue: list.reduce((n, o) => n + o.amounts.total, 0), orders: list.length };
     });
-    const byStatus = ALL_STATUSES.map((s) => ({ name: s, value: orders.filter((o) => statusAt(o, now) === s).length })).filter((x) => x.value);
+    const byStatus = ALL_STATUSES.map((s) => ({ name: s, value: orders.filter((o) => statusAt(o) === s).length })).filter((x) => x.value);
     const cat: Record<string, number> = {};
     const units: Record<string, number> = {};
     for (const o of live) for (const i of o.items) {
@@ -46,7 +46,7 @@ export function Dashboard() {
       total: orders.length,
       today: orders.filter((o) => dayKey(new Date(o.createdAt)) === today).length,
       revenue: live.reduce((n, o) => n + o.amounts.total, 0),
-      pending: orders.filter((o) => !["Delivered", "Cancelled"].includes(statusAt(o, now))).length,
+      pending: orders.filter((o) => !["Delivered", "Cancelled"].includes(statusAt(o))).length,
       trend, byStatus, top,
       byCat: (Object.keys(categoryMeta) as CategorySlug[]).map((c) => ({ name: categoryMeta[c].title, sales: cat[categoryMeta[c].title] ?? 0 })),
     };
@@ -121,7 +121,7 @@ export function Dashboard() {
                     <td className={td}>{fmtDate(o.createdAt)}</td>
                     <td className={`${td} font-semibold`}>{inr(o.amounts.total)}</td>
                     <td className={td}>{o.paymentMethod}</td>
-                    <td className={td}><StatusPill status={statusAt(o, now)} /></td>
+                    <td className={td}><StatusPill status={statusAt(o)} /></td>
                     <td className={td}><Link to="/admin/orders/$id" params={{ id: o.id }} className="rounded-md border border-border px-3 py-1 text-[12px] font-medium hover:border-primary hover:text-primary">View</Link></td>
                   </tr>
                 ))}

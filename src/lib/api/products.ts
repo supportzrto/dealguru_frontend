@@ -1,7 +1,7 @@
 
 import type { Product } from "@/components/shop/data";
+import { apiRequest } from "@/lib/api/client";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 type ApiProduct = {
   id: string;
@@ -64,27 +64,19 @@ function mapProduct(p: ApiProduct): Product {
 }
 
 export async function fetchProducts(): Promise<Product[]> {
-  const response = await fetch(`${API_BASE_URL}/api/products/`);
+  const data = await apiRequest<ApiProduct[]>("/api/products/");
+  return data.map(mapProduct);
+}
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch products: ${response.status}`);
-  }
-
-  const data: ApiProduct[] = await response.json();
-
+export async function fetchAllProductsAdmin(): Promise<Product[]> {
+  const data = await apiRequest<ApiProduct[]>("/api/products/admin/all");
   return data.map(mapProduct);
 }
 
 export async function fetchProduct(id: string): Promise<Product> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/products/${encodeURIComponent(id)}`
+  const data = await apiRequest<ApiProduct>(
+    `/api/products/${encodeURIComponent(id)}`
   );
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch product: ${response.status}`);
-  }
-
-  const data: ApiProduct = await response.json();
 
   return mapProduct(data);
 }
