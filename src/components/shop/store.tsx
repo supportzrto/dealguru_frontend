@@ -6,9 +6,26 @@ import { useProducts } from "@/context/ProductsContext";
 import { useSettings } from "@/context/SettingsContext";
 import type { Product } from "./data";
 
-export type CartItem = { key: string; product: Product; qty: number; color?: string | undefined; size?: string | undefined };
-type StoredItem = { key: string; id: string; qty: number; color?: string | undefined; size?: string | undefined };
-type AddOpts = { qty?: number | undefined; color?: string | undefined; size?: string | undefined; silent?: boolean };
+export type CartItem = {
+  key: string;
+  product: Product;
+  qty: number;
+  color?: string | undefined;
+  size?: string | undefined;
+};
+type StoredItem = {
+  key: string;
+  id: string;
+  qty: number;
+  color?: string | undefined;
+  size?: string | undefined;
+};
+type AddOpts = {
+  qty?: number | undefined;
+  color?: string | undefined;
+  size?: string | undefined;
+  silent?: boolean;
+};
 
 type CartCtx = {
   items: CartItem[];
@@ -45,7 +62,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!productsReady || loaded) return;
     const stored = readStore<StoredItem[]>("dealguru_cart", []);
-    setItems(stored.flatMap((s) => { const product = getProduct(s.id); return product ? [{ key: s.key, product, qty: s.qty, color: s.color, size: s.size }] : []; }));
+    setItems(
+      stored.flatMap((s) => {
+        const product = getProduct(s.id);
+        return product ? [{ key: s.key, product, qty: s.qty, color: s.color, size: s.size }] : [];
+      }),
+    );
     setIds(new Set(readStore<string[]>("dealguru_wishlist", [])));
     setCouponCode(readStore<string | null>("dealguru_coupon", null));
     setLoaded(true);
@@ -54,8 +76,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!loaded) return;
     setItems((prev) => {
-      const next = prev.flatMap((i) => { const product = products.find((p) => p.id === i.product.id); return product ? [{ ...i, product }] : []; });
-      return next.length === prev.length && next.every((n, k) => n.product === prev[k]!.product) ? prev : next;
+      const next = prev.flatMap((i) => {
+        const product = products.find((p) => p.id === i.product.id);
+        return product ? [{ ...i, product }] : [];
+      });
+      return next.length === prev.length && next.every((n, k) => n.product === prev[k]!.product)
+        ? prev
+        : next;
     });
     setIds((prev) => {
       const next = new Set([...prev].filter((id) => products.some((p) => p.id === id)));
@@ -64,47 +91,109 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [products, loaded]);
   useEffect(() => {
     if (!loaded) return;
-    writeStore("dealguru_cart", items.map((i) => ({ key: i.key, id: i.product.id, qty: i.qty, color: i.color, size: i.size })));
+    writeStore(
+      "dealguru_cart",
+      items.map((i) => ({
+        key: i.key,
+        id: i.product.id,
+        qty: i.qty,
+        color: i.color,
+        size: i.size,
+      })),
+    );
     writeStore("dealguru_wishlist", [...ids]);
     writeStore("dealguru_coupon", couponCode);
   }, [items, ids, couponCode, loaded]);
 
-  const cart = useMemo<CartCtx>(() => ({
-    items, open, setOpen,
-    count: items.reduce((n, i) => n + i.qty, 0),
-    subtotal: items.reduce((n, i) => n + i.qty * i.product.price, 0),
-    add: (product, o = {}) => {
-      const key = [product.id, o.color, o.size].filter(Boolean).join("-");
-      const inBag = items.filter((i) => i.product.id === product.id).reduce((n, i) => n + i.qty, 0);
-      const want = o.qty ?? 1;
-      if (product.stock <= 0) { toast.error("Out of stock", { description: product.name }); return false; }
-      if (inBag + want > product.stock) { toast.error(`Only ${product.stock} left`, { description: product.name }); return false; }
-      setItems((prev) => {
-        const hit = prev.find((i) => i.key === key);
-        if (hit) return prev.map((i) => (i.key === key ? { ...i, qty: i.qty + want } : i));
-        return [...prev, { key, product, qty: want, color: o.color, size: o.size }];
-      });
-      if (!o.silent) toast.success("Added to bag", { description: product.name });
-      return true;
-    },
-    setQty: (key, qty) => {
-      const item = items.find((i) => i.key === key);
-      if (item && qty > item.qty) {
-        const others = items.filter((i) => i.product.id === item.product.id && i.key !== key).reduce((n, i) => n + i.qty, 0);
-        if (others + qty > item.product.stock) { toast.error(`Only ${item.product.stock} left`, { description: item.product.name }); return; }
-      }
-      setItems((prev) => (qty <= 0 ? prev.filter((i) => i.key !== key) : prev.map((i) => (i.key === key ? { ...i, qty } : i))));
-    },
-    clear: () => { setItems([]); setCouponCode(null); },
-    coupon: couponCode ? findCoupon(couponCode, coupons) : undefined,
-    applyCoupon: (code) => { const c = findCoupon(code, coupons); if (c) setCouponCode(c.code); return !!c; },
-    removeCoupon: () => setCouponCode(null),
-  }), [items, open, couponCode, coupons]);
+  const cart = useMemo<CartCtx>(
+    () => ({
+      items,
+      open,
+      setOpen,
+      count: items.reduce((n, i) => n + i.qty, 0),
+      subtotal: items.reduce((n, i) => n + i.qty * i.product.price, 0),
+      add: (product, o = {}) => {
+        const key = [product.id, o.color, o.size].filter(Boolean).join("-");
+        const inBag = items
+          .filter((i) => i.product.id === product.id)
+          .reduce((n, i) => n + i.qty, 0);
+        const want = o.qty ?? 1;
+        if (product.stock <= 0) {
+          toast.error("Out of stock", { description: product.name });
+          return false;
+        }
+        if (inBag + want > product.stock) {
+          toast.error(`Only ${product.stock} left`, { description: product.name });
+          return false;
+        }
+        setItems((prev) => {
+          const hit = prev.find((i) => i.key === key);
+          if (hit) return prev.map((i) => (i.key === key ? { ...i, qty: i.qty + want } : i));
+          return [...prev, { key, product, qty: want, color: o.color, size: o.size }];
+        });
+        // Meta Pixel: Track successful AddToCart
+        if (typeof window !== "undefined") {
+          const fbq = (
+            window as Window & {
+              fbq?: (...args: unknown[]) => void;
+            }
+          ).fbq;
 
-  const wish = useMemo<WishCtx>(() => ({
-    ids,
-    toggle: (id) => setIds((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; }),
-  }), [ids]);
+          fbq?.("track", "AddToCart", {
+            content_ids: [product.id],
+            content_name: product.name,
+            content_type: "product",
+            value: product.price * want,
+            currency: "INR",
+          });
+        }
+        if (!o.silent) toast.success("Added to bag", { description: product.name });
+        return true;
+      },
+      setQty: (key, qty) => {
+        const item = items.find((i) => i.key === key);
+        if (item && qty > item.qty) {
+          const others = items
+            .filter((i) => i.product.id === item.product.id && i.key !== key)
+            .reduce((n, i) => n + i.qty, 0);
+          if (others + qty > item.product.stock) {
+            toast.error(`Only ${item.product.stock} left`, { description: item.product.name });
+            return;
+          }
+        }
+        setItems((prev) =>
+          qty <= 0
+            ? prev.filter((i) => i.key !== key)
+            : prev.map((i) => (i.key === key ? { ...i, qty } : i)),
+        );
+      },
+      clear: () => {
+        setItems([]);
+        setCouponCode(null);
+      },
+      coupon: couponCode ? findCoupon(couponCode, coupons) : undefined,
+      applyCoupon: (code) => {
+        const c = findCoupon(code, coupons);
+        if (c) setCouponCode(c.code);
+        return !!c;
+      },
+      removeCoupon: () => setCouponCode(null),
+    }),
+    [items, open, couponCode, coupons],
+  );
+
+  const wish = useMemo<WishCtx>(
+    () => ({
+      ids,
+      toggle: (id) =>
+        setIds((s) => {
+          const n = new Set(s);
+          n.has(id) ? n.delete(id) : n.add(id);
+          return n;
+        }),
+    }),
+    [ids],
+  );
 
   return (
     <CartContext.Provider value={cart}>
@@ -115,7 +204,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function need<T>(v: T | null): T { if (!v) throw new Error("StoreProvider missing"); return v; }
+function need<T>(v: T | null): T {
+  if (!v) throw new Error("StoreProvider missing");
+  return v;
+}
 export const useCart = () => need(useContext(CartContext));
 export const useWishlist = () => need(useContext(WishlistContext));
 export const useUi = () => need(useContext(UiContext));
