@@ -181,7 +181,7 @@ function Checkout() {
   const [terms, setTerms] = useState(false);
   const [paying, setPaying] = useState(false);
   const [placed, setPlaced] = useState(false);
-
+  const purchaseTracked = useRef(false);
   const checkoutTracked = useRef(false);
 
   useEffect(() => {
@@ -305,7 +305,28 @@ function Checkout() {
           handler: async (response) => {
             try {
               // 5. Verify payment on backend
-              await verifyRazorpayPayment(order.id, response);
+              // 5. Verify payment on backend
+              const verifiedOrder = await verifyRazorpayPayment(order.id, response);
+
+              // 6. Track Purchase only after successful backend verification
+              if (verifiedOrder.paymentStatus === "Paid" && !purchaseTracked.current) {
+                const fbq = (
+                  window as Window & {
+                    fbq?: (...args: any[]) => void;
+                  }
+                ).fbq;
+
+                fbq?.("track", "Purchase", {
+                  content_ids: verifiedOrder.items.map((item) => item.productId),
+                  content_type: "product",
+                  num_items: verifiedOrder.items.reduce((total, item) => total + item.qty, 0),
+                  value: verifiedOrder.amounts.total,
+                  currency: "INR",
+                  order_id: verifiedOrder.id,
+                });
+
+                purchaseTracked.current = true;
+              }
 
               setPlaced(true);
               clear();
