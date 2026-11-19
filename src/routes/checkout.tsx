@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Check, ChevronDown, Gift, Plus, Truck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -181,6 +181,32 @@ function Checkout() {
   const [terms, setTerms] = useState(false);
   const [paying, setPaying] = useState(false);
   const [placed, setPlaced] = useState(false);
+
+  const checkoutTracked = useRef(false);
+
+  useEffect(() => {
+    if (isAdmin || !items.length || placed || checkoutTracked.current) {
+      return;
+    }
+
+    const fbq = (
+      window as Window & {
+        fbq?: (...args: any[]) => void;
+      }
+    ).fbq;
+
+    if (!fbq) return;
+
+    fbq("track", "InitiateCheckout", {
+      content_ids: items.map((item) => item.product.id),
+      content_type: "product",
+      num_items: items.reduce((total, item) => total + item.qty, 0),
+      value: subtotal,
+      currency: "INR",
+    });
+
+    checkoutTracked.current = true;
+  }, [items, subtotal, isAdmin, placed]);
 
   useEffect(() => {
     if (!addressId && addresses.length)
