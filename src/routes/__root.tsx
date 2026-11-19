@@ -9,7 +9,7 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -115,6 +115,62 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+
+function MetaPixel() {
+  const currentUrl = useRouterState({
+    select: (s) => s.location.href,
+  });
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    const pixelId = "1168885942156439";
+
+    if (!initialized.current) {
+      const w = window as Window & {
+        fbq?: (...args: any[]) => void;
+        _fbq?: (...args: any[]) => void;
+      };
+
+      if (!w.fbq) {
+        const fbq: any = function (...args: any[]) {
+          if (fbq.callMethod) {
+            fbq.callMethod.apply(fbq, args);
+          } else {
+            fbq.queue.push(args);
+          }
+        };
+
+        fbq.push = fbq;
+        fbq.loaded = true;
+        fbq.version = "2.0";
+        fbq.queue = [];
+
+        w.fbq = fbq;
+        w._fbq = fbq;
+
+        const script = document.createElement("script");
+        script.async = true;
+        script.src = "https://connect.facebook.net/en_US/fbevents.js";
+        document.head.appendChild(script);
+      }
+
+      w.fbq!("init", pixelId);
+      initialized.current = true;
+    }
+
+    const w = window as Window & {
+      fbq?: (...args: any[]) => void;
+    };
+
+    w.fbq?.("track", "PageView");
+  }, [currentUrl]);
+
+  return null;
+}
+
+
+
+
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
@@ -136,27 +192,32 @@ function RootComponent() {
   const isAdmin = useRouterState({ select: (s) => s.location.pathname.startsWith("/admin") });
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <SettingsProvider>
-          <ProductsProvider>
-            <OrdersProvider>
-              <StoreProvider>
-                {!isAdmin && <AnnouncementBar />}
-                {!isAdmin && <Navbar />}
-                <main>
-                  {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-                  <Outlet />
-                </main>
-                {!isAdmin && <Footer />}
-                {!isAdmin && <CartDrawer />}
-                {!isAdmin && <SearchOverlay />}
-                <Toaster position="bottom-right" />
-              </StoreProvider>
-            </OrdersProvider>
-          </ProductsProvider>
-        </SettingsProvider>
-      </AuthProvider>
-    </QueryClientProvider>
-  );
+  <QueryClientProvider client={queryClient}>
+    <MetaPixel />
+
+    <AuthProvider>
+      <SettingsProvider>
+        <ProductsProvider>
+          <OrdersProvider>
+            <StoreProvider>
+              {!isAdmin && <AnnouncementBar />}
+              {!isAdmin && <Navbar />}
+
+              <main>
+                {/* Required: nested routes render here. */}
+                <Outlet />
+              </main>
+
+              {!isAdmin && <Footer />}
+              {!isAdmin && <CartDrawer />}
+              {!isAdmin && <SearchOverlay />}
+
+              <Toaster position="bottom-right" />
+            </StoreProvider>
+          </OrdersProvider>
+        </ProductsProvider>
+      </SettingsProvider>
+    </AuthProvider>
+  </QueryClientProvider>
+);
 }
